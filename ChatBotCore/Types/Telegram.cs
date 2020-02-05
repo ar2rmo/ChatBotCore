@@ -6,13 +6,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using Newtonsoft.Json;
-using NLog;
 using Telegram.Bot;
 using Telegram.Bot.Args;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
-using Api.Managers;
 using BotCore.Managers;
 using BotCore.Types.Enums;
 using BotCore.Types.Base;
@@ -45,18 +43,15 @@ namespace BotCore.Telegram
 
     internal class IncomingMessage : IIncomingMessage
     {
-        Logger Log;
         public IncomingMessage(Message message)
         {
             Text = "bullshit";
-            Log = new BotLogManager().GetManager<IncomingMessage>();
             try
             {
                 Type = (MessageInType)Enum.Parse(typeof(MessageInType), $"{message.Type}");
             }
             catch (Exception)
             {
-                Log.Warn("There is no such of Message type");
                 Type = MessageInType.Uknown;
             }
 
@@ -118,8 +113,7 @@ namespace BotCore.Telegram
 
         public TelegramBotBase(IConfiguration configuration) : base(configuration)
         {
-            Log = new BotLogManager().GetManager<TelegramBotBase>();
-            Log.Debug($"Construct TelegramBotBase from conf: {configuration}");
+            
         }
 
         public override async Task SendMessageAsync(IChatSession sess, IOutgoingMessage msg)
@@ -129,7 +123,6 @@ namespace BotCore.Telegram
             {
                 var letter = OutQueue.Dequeue();
 
-                Log.Debug($"SendMessageAsync with sess {letter.Session.ChatId} and out msg {letter.OutMsg}");
                 if (!(sess is ChatSession)) throw new Exception("Bad chat session type");
                 var s = sess as ChatSession;
                 switch (letter.OutMsg.Type)
@@ -155,7 +148,6 @@ namespace BotCore.Telegram
                         break;
                     case MsgOutType.Wait:
                         {
-                            _chat_manager.SetWaitMsg(letter.Session, letter.OutMsg);
                             var m = await _cli.SendTextMessageAsync(letter.Session.InternalChatId, $"Нагадування встановлено");
                             break;
                         }
@@ -271,7 +263,6 @@ namespace BotCore.Telegram
             _cli.OnCallbackQuery += OnCallbackQueryRecievd;
             _cli.SetWebhookAsync("");
             _cli.StartReceiving();
-            _chat_manager.OnSendWaitMessage = async (IChatSession sess, IOutgoingMessage msg) => await SendMessageAsync(sess, msg);
         }
 
         public override void Stop()
@@ -312,13 +303,14 @@ namespace BotCore.Telegram
                 response.StatusCode = (int)HttpStatusCode.OK;
                 using (Stream stream = response.OutputStream)
                 {
-                    Log.Debug("OK response send!");
+                    
                 }
                 while (taskManager.IsAbuse)
                 {
-                    Log.Debug("Task manager is Abuse.Wait tasks!");
                     Thread.Sleep(100);
                 };
+
+                Thread.Sleep(100);
 
                 Task task = CentralRoadAsync(request);
 
@@ -378,15 +370,10 @@ namespace BotCore.Telegram
         public override void Start()
         {
             _cli = new TelegramBotClient(_conf.Token);
-            _chat_manager.Start();
-            Log.Debug("Init listening");
-
-            Log.Debug($"{this.GetType()} start listening telegram msgs");
             _thread = new Thread(Loop);
             _thread.Start();
             Task t = _cli.SetWebhookAsync(_conf.WebHook);
             Task.WaitAll(t);
-            _chat_manager.OnSendWaitMessage = async (IChatSession sess, IOutgoingMessage msg) => await SendMessageAsync(sess, msg);
         }
 
         public override void Stop()
@@ -394,8 +381,6 @@ namespace BotCore.Telegram
             isListening = false;
             _thread.Join(1000);
             _thread = null;
-            _chat_manager.Stop();
-            Log.Debug($"{this.GetType()} stop listening telegram msgs");
         }
 
         public override string ToString()

@@ -1,9 +1,7 @@
-﻿using Api.Managers;
-using BotCore.Managers;
+﻿using BotCore.Managers;
 using BotCore.Telegram;
 using BotCore.Types.Enums;
 using Newtonsoft.Json;
-using NLog;
 using System;
 using System.IO;
 using System.Linq;
@@ -40,8 +38,6 @@ namespace BotCore.Viber
 
     internal class IncomingMessage : IIncomingMessage
     {
-        Logger Log;
-
         public IncomingMessage()
         {
             Text = "init";
@@ -51,7 +47,6 @@ namespace BotCore.Viber
         public IncomingMessage(CallbackData data)
         {
             Text = "bullshit";
-            Log = new BotLogManager().GetManager<IncomingMessage>();
             if(data.Event == EventType.Message)
             switch (data.Message.Type)
             {
@@ -139,21 +134,16 @@ namespace BotCore.Viber
 
         public AciveViberBot(IConfiguration configuration) : base(configuration)
         {
-            Log = new BotLogManager().GetManager<TelegramBotBase>();
             _cli = new ViberBotClient(configuration.Token);
         }
 
         public override void Start()
         {
-            Log.Debug("Init listening");
             _cli = new ViberBotClient(_conf.Token);
-            Log.Debug($"{this.GetType()} start listening telegram msgs");
-            _chat_manager.Start();
             _thread = new Thread(Loop);
             _thread.Start();
             Task t = _cli.SetWebhookAsync(_conf.WebHook);
             Task.WaitAll(t);
-            _chat_manager.OnSendWaitMessage = async (IChatSession sess, IOutgoingMessage msg) => await SendMessageAsync(sess, msg);
         }
 
         public override void Stop()
@@ -161,8 +151,6 @@ namespace BotCore.Viber
             isListening = false;
             _thread.Join(1000);
             _thread = null;
-            _chat_manager.Stop();
-            Log.Debug($"{this.GetType()} stop listening telegram msgs");
         }
 
         public void Loop()
@@ -182,7 +170,7 @@ namespace BotCore.Viber
                 response.StatusCode = (int)HttpStatusCode.OK;
                 using (Stream stream = response.OutputStream)
                 {
-                    Log.Debug("OK response send!");
+                    
                 }
                 while (taskManager.IsAbuse)
                 {
@@ -209,7 +197,7 @@ namespace BotCore.Viber
                     break;
                 case EventType.Seen:
                     {
-                        Log.Info($"Get seen resp");
+                        
                     }
                     break;
                 case EventType.Failed:
@@ -226,7 +214,6 @@ namespace BotCore.Viber
                 case EventType.Unsubscribed:
                     {
                         var s = new ChatSession(data.UserId);
-                        _chat_manager.DeleteChat(s.ChatId);
                         break;
                     }
                 case EventType.ConversationStarted:
@@ -260,7 +247,6 @@ namespace BotCore.Viber
 
         public override async Task SendMessageAsync(IChatSession sess, IOutgoingMessage msg)
         {
-            Log.Debug($"SendMessageAsync with sess {sess.ChatId} and out msg {msg}");
             if (!(sess is ChatSession)) throw new Exception("Bad chat session type");
             var s = sess as ChatSession;
             switch (msg.Type)
@@ -291,7 +277,6 @@ namespace BotCore.Viber
                     break;
                 case MsgOutType.Wait:
                     {
-                        _chat_manager.SetWaitMsg(sess, msg);
                         var m = new TextMessage
                         {
                             Text = $"Нагадування встановлено",

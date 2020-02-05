@@ -30,7 +30,7 @@ namespace BotCore.Managers
         {
 
         }
-        
+
         private void DropTrash()
         {
             if (taskList.Count > 10)

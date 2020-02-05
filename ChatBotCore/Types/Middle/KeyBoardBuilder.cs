@@ -1,7 +1,4 @@
-﻿using Api.Managers;
-using NLog;
-
-namespace BotCore
+﻿namespace BotCore
 {
     class KeyBoardBuilder
     {
@@ -13,7 +10,6 @@ namespace BotCore
 
         public static T[] CreateCol<T>(int count) where T : new()
         {
-            Logger Log = new ApiLogManager().GetManager<KeyBoardBuilder>();
             T[] col = new T[count];
 
             for (int i = 0; i < count; i++)
@@ -21,13 +17,11 @@ namespace BotCore
                 col[i] = new T();
             }
 
-            Log.Info($"Create col {col}");
             return col;
         }
 
         public static T[][] CreateKeyBoard<T>(int colNum, int num) where T : new()
         {
-            Logger Log = new ApiLogManager().GetManager<KeyBoardBuilder>();
             int rowNum = CallcRows(num, colNum);
             T[][] keyBoard = new T[rowNum][];
 
@@ -37,7 +31,6 @@ namespace BotCore
                 keyBoard[i] = CreateCol<T>(colNum);
                 num -= colNum;
             }
-            Log.Info($"Create keyBoard {keyBoard}");
             return keyBoard;
         }
     }

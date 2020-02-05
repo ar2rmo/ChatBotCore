@@ -18,8 +18,6 @@ namespace BotCore
     public interface IBot
     {
         void RegisterMessageProcessor(IMessageProcessor proc);
-        void RegisterChatProcessorFactory(IChatProcessorFactory factory);
-        //void RegisterChatProcessor<T>() where T : IChatProcessor, new();
         Task SendMessageAsync(IChatSession sess, IOutgoingMessage msg);
         void Start();
         void Stop();
