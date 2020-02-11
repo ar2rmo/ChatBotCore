@@ -13,6 +13,8 @@ namespace BotCore
             conf = configuration;
         }
 
+        public abstract Task InitAsync();
+
         public abstract Task SendMessageAsync(IChatSession sess, IOutgoingMessage msg);
 
         protected async Task ProcessIncomingMessageAsync(IMessageProcessor proc, IIncomingMessage msg, IChatSession sess)

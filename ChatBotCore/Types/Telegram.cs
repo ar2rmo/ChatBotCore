@@ -126,6 +126,11 @@ namespace BotCore.Telegram
             
         }
 
+        public override async Task InitAsync()
+        {
+            await _cli.SetWebhookAsync(conf.WebHook);
+        }
+
         public override async Task SendMessageAsync(IChatSession sess, IOutgoingMessage msg)
         {
             var ss = new ChatSession(sess);

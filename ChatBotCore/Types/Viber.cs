@@ -128,6 +128,11 @@ namespace BotCore.Viber
             _cli = new ViberBotClient(configuration.Token);
         }
 
+        public override async Task InitAsync()
+        {
+            await _cli.SetWebhookAsync(conf.WebHook);
+        }
+
         protected override bool ParseIncomingMessage(String json, out IChatSession s, out IIncomingMessage m)
         {
             s = null;
