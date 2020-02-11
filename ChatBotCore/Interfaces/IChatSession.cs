@@ -6,7 +6,6 @@ namespace BotCore
 {
     public interface IChatSession
     {
-        [JsonProperty]
         Guid ChatId { get; }
     }
 }

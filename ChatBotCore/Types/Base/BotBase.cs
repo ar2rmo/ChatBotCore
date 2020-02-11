@@ -2,53 +2,35 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
-using BotCore.Managers;
 
 namespace BotCore
 {
     public abstract class BotBase : IBot
     {
-        [JsonProperty]
-        protected IConfiguration _conf;
-        [JsonProperty]
-        protected List<Type> _chat_procs_types;
-        [JsonProperty]
-        protected List<IMessageProcessor> _procs = new List<IMessageProcessor>();
-        public BotBase()
-        {
-            
-        }
-
+        protected IConfiguration conf;
         public BotBase(IConfiguration configuration)
         {
-            _conf = configuration;
-        }
-
-        public void RegisterMessageProcessor(IMessageProcessor proc)
-        {
-            if (_procs == null) _procs = new List<IMessageProcessor>();
-            _procs.Add(proc);
+            conf = configuration;
         }
 
         public abstract Task SendMessageAsync(IChatSession sess, IOutgoingMessage msg);
 
-        public abstract void Start();
-
-        public abstract void Stop();
-
-        protected async Task ProcessIncomingMessageAsync(IIncomingMessage incoming, IChatSession session)
+        protected async Task ProcessIncomingMessageAsync(IMessageProcessor proc, IIncomingMessage msg, IChatSession sess)
         {
-            if (_procs != null)
+            var ms = proc.ProcessIncomingMessage(sess, msg);
+            foreach (var m in ms)
             {
-                foreach (var p in _procs)
-                {
-                    var mo = p.ProcessIncomingMessage(session, incoming);
-                    
-                    foreach (var msg in mo)
-                    {
-                        await SendMessageAsync(session, msg);
-                    }
-                }
+                await SendMessageAsync(sess, m);
+            }
+        }
+
+        protected abstract bool ParseIncomingMessage(String json, out IChatSession sess, out IIncomingMessage msg);
+
+        public async Task ProcessIncomingMessageAsync(String json, IMessageProcessor proc)
+        {
+            if (ParseIncomingMessage(json, out var sess, out var msg))
+            {
+                await ProcessIncomingMessageAsync(proc, msg, sess);
             }
         }
     }

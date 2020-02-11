@@ -11,7 +11,6 @@ using Telegram.Bot.Args;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
-using BotCore.Managers;
 using BotCore.Types.Enums;
 using BotCore.Types.Base;
 
@@ -38,6 +37,20 @@ namespace BotCore.Telegram
         public ChatSession(Int64 id)
         {
             InternalChatId = id;
+        }
+
+        public ChatId GetChatId()
+        {
+            return new ChatId(InternalChatId);
+        }
+
+        public ChatSession(IChatSession source)
+        {
+            var ba = source.ChatId.ToByteArray();
+            var i1 = BitConverter.ToInt64(ba, 0);
+            var i2 = BitConverter.ToInt64(ba, 8);
+            if (i1 != i2) throw new Exception("Bad ChatId format");
+            InternalChatId = i1;
         }
     }
 
@@ -104,56 +117,88 @@ namespace BotCore.Telegram
 
     }
 
-    public class TelegramBotBase : BotBase
+    public class TelegramBot : BotBase, IBot
     {
-        [JsonIgnore]
         protected TelegramBotClient _cli;
-        [JsonProperty]
-        private Queue<OutInfo> OutQueue = new Queue<OutInfo>();
 
-        public TelegramBotBase(IConfiguration configuration) : base(configuration)
+        public TelegramBot(IConfiguration configuration) : base(configuration)
         {
             
         }
 
         public override async Task SendMessageAsync(IChatSession sess, IOutgoingMessage msg)
         {
-            OutQueue.Enqueue(new OutInfo { Session = sess as ChatSession, OutMsg = msg });
-            while (OutQueue.Count > 0) 
+            var ss = new ChatSession(sess);
+            switch (msg.Type)
             {
-                var letter = OutQueue.Dequeue();
+                case MsgOutType.Text:
+                    {
+                        await _cli.SendTextMessageAsync(ss.GetChatId(), msg.Text);
+                    }
+                    break;
+                case MsgOutType.Keyboard:
+                    {
+                        var m = await _cli.SendTextMessageAsync
+                            (
+                                ss.GetChatId(),
+                                msg.Text,
+                                ParseMode.Markdown,
+                                false, false, 0,
+                                GetTelegramKeyboard(msg.Keyboard)
+                            );
+                    }
+                    break;
+                case MsgOutType.Photo:
+                    break;
+                case MsgOutType.Wait:
+                    {
+                        var m = await _cli.SendTextMessageAsync(ss.GetChatId(), $"Нагадування встановлено");
+                        break;
+                    }
+                default:
+                    break;
+            }
+        }
 
-                if (!(sess is ChatSession)) throw new Exception("Bad chat session type");
-                var s = sess as ChatSession;
-                switch (letter.OutMsg.Type)
-                {
-                    case MsgOutType.Text:
-                        {
-                            var m =  await _cli.SendTextMessageAsync(letter.Session.InternalChatId, letter.OutMsg.Text);
-                        }
-                        break;
-                    case MsgOutType.Keyboard:
-                        {
-                            var m = await _cli.SendTextMessageAsync
-                                (
-                                    letter.Session.InternalChatId,
-                                    letter.OutMsg.Text,
-                                    ParseMode.Markdown,
-                                    false, false, 0,
-                                    GetTelegramKeyboard(letter.OutMsg.Keyboard)
-                                );
-                        }
-                        break;
-                    case MsgOutType.Photo:
-                        break;
-                    case MsgOutType.Wait:
-                        {
-                            var m = await _cli.SendTextMessageAsync(letter.Session.InternalChatId, $"Нагадування встановлено");
-                            break;
-                        }
-                    default:
-                        break;
-                }
+        protected override bool ParseIncomingMessage(String json, out IChatSession s, out IIncomingMessage m)
+        {
+            s = null;
+            m = null;
+            Update update = JsonConvert.DeserializeObject<Update>(json);
+            switch (update.Type)
+            {
+                case UpdateType.Unknown:
+                    return false;
+                case UpdateType.Message:
+                    {
+                        m = new IncomingMessage(update.Message);
+                        s = new ChatSession(update.Message.Chat.Id);
+                        return true;
+                    }
+                case UpdateType.InlineQuery:
+                    return false;
+                case UpdateType.ChosenInlineResult:
+                    return false;
+                case UpdateType.CallbackQuery:
+                    {
+                        var message = update.CallbackQuery.Message;
+                        message.Text = update.CallbackQuery.Data;
+                        m = new IncomingMessage(message);
+                        s = new ChatSession(message.Chat.Id);
+                        return true;
+                    }
+                case UpdateType.EditedMessage:
+                    return false;
+                case UpdateType.ChannelPost:
+                    return false;
+                case UpdateType.EditedChannelPost:
+                    return false;
+                case UpdateType.ShippingQuery:
+                    return false;
+                case UpdateType.PreCheckoutQuery:
+                    return false;
+                default:
+                    return false;
             }
         }
 
@@ -212,183 +257,6 @@ namespace BotCore.Telegram
             var rkm = new InlineKeyboardMarkup(keyBoard);
 
             return rkm;
-        }
-
-        public override string ToString()
-        {
-            return $"TelegramBotBase :{{BotClient :\"{_cli}\", \"{base.ToString()}\"}}";
-        }
-
-        public override void Start()
-        {
-            _cli = new TelegramBotClient(_conf.Token);
-        }
-
-        public override void Stop()
-        {
-
-        }
-    }
-
-    public class PassiveBot : TelegramBotBase, IBot
-    {
-        public PassiveBot(IConfiguration configuration) : base(configuration)
-        {
-            
-        }
-
-        private void OnMessageReceived(object sender, MessageEventArgs messageEventArgs)
-        {
-            var message = messageEventArgs.Message;
-            var m = new IncomingMessage(message);
-            var s = new ChatSession(message.Chat.Id);
-
-            ProcessIncomingMessageAsync(m, s).Wait();
-        }
-
-        public void OnCallbackQueryRecievd(object sender, CallbackQueryEventArgs callback)
-        {
-            var message = callback.CallbackQuery.Message;
-            message.Text = callback.CallbackQuery.Data;
-            var m = new IncomingMessage(message);
-            var s = new ChatSession(message.Chat.Id);
-
-            ProcessIncomingMessageAsync(m, s).Wait();
-        }
-
-        public override void Start()
-        {
-            _cli = new TelegramBotClient(_conf.Token);
-            _cli.OnMessage += OnMessageReceived;
-            _cli.OnCallbackQuery += OnCallbackQueryRecievd;
-            _cli.SetWebhookAsync("");
-            _cli.StartReceiving();
-        }
-
-        public override void Stop()
-        {
-            _cli.StopReceiving();
-        }
-    }
-
-    public class ActiveTelegramBot : TelegramBotBase, IBot
-    {
-        [JsonIgnore]
-        protected bool isListening;
-        [JsonIgnore]
-        Thread _thread;
-        [JsonIgnore]
-        protected HttpListener listener = new HttpListener();
-        [JsonIgnore]
-        TaskManager taskManager;
-
-        public ActiveTelegramBot(IConfiguration configuration) : base(configuration)
-        {
-
-        }
-
-        private void Loop()
-        {
-            listener.Prefixes.Add(_conf.UriListener);
-            listener.Start();
-            isListening = true;
-
-            taskManager = new TaskManager();
-            while (isListening)
-            {
-                HttpListenerContext context = listener.GetContext();
-                HttpListenerResponse response = context.Response;
-                HttpListenerRequest request = context.Request;
-
-                response.StatusCode = (int)HttpStatusCode.OK;
-                using (Stream stream = response.OutputStream)
-                {
-                    
-                }
-                while (taskManager.IsAbuse)
-                {
-                    Thread.Sleep(100);
-                };
-
-                Thread.Sleep(100);
-
-                Task task = CentralRoadAsync(request);
-
-                taskManager.Add(task);
-            }
-
-            listener.Stop();
-            listener.Close();
-
-            taskManager.WaitAll();
-        }
-
-        private async Task CentralRoadAsync(HttpListenerRequest request)
-        {
-            Update update = await BotJsonManager.ParseFromRequest<Update>(request);
-            switch (update.Type)
-            {
-                case UpdateType.Unknown:
-                    break;
-                case UpdateType.Message:
-                    {
-                        var m = new IncomingMessage(update.Message);
-                        var s = new ChatSession(update.Message.Chat.Id);
-
-                        await ProcessIncomingMessageAsync(m, s);
-                        break;
-                    }
-                case UpdateType.InlineQuery:
-                    break;
-                case UpdateType.ChosenInlineResult:
-                    break;
-                case UpdateType.CallbackQuery:
-                    {
-                        var message = update.CallbackQuery.Message;
-                        message.Text = update.CallbackQuery.Data;
-                        var m = new IncomingMessage(message);
-                        var s = new ChatSession(message.Chat.Id);
-
-                        await ProcessIncomingMessageAsync(m, s);
-                        break;
-                    }
-                case UpdateType.EditedMessage:
-                    break;
-                case UpdateType.ChannelPost:
-                    break;
-                case UpdateType.EditedChannelPost:
-                    break;
-                case UpdateType.ShippingQuery:
-                    break;
-                case UpdateType.PreCheckoutQuery:
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        public override void Start()
-        {
-            _cli = new TelegramBotClient(_conf.Token);
-            _thread = new Thread(Loop);
-            _thread.Start();
-            Task t = _cli.SetWebhookAsync(_conf.WebHook);
-            Task.WaitAll(t);
-        }
-
-        public override void Stop()
-        {
-            isListening = false;
-            _thread.Join(1000);
-            _thread = null;
-        }
-
-        public override string ToString()
-        {
-            return $"ActiveTelegramBot :{{Listener :\"{listener}\"," +
-                $"Uri \"{_conf.UriListener}\"," +
-                $"isListening :\"{isListening}\"," +
-                $" \"{base.ToString()}\"}}";
         }
     }
 }

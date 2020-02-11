@@ -1,6 +1,4 @@
-﻿using BotCore.Managers;
-using BotCore.Telegram;
-using BotCore.Types.Enums;
+﻿using BotCore.Types.Enums;
 using Newtonsoft.Json;
 using System;
 using System.IO;
@@ -33,6 +31,12 @@ namespace BotCore.Viber
         public ChatSession(String id)
         {
             InternalChatId = id;
+        }
+
+        public ChatSession(IChatSession source)
+        {
+            var ba = source.ChatId.ToByteArray();
+            InternalChatId = Convert.ToBase64String(ba);
         }
     }
 
@@ -114,134 +118,58 @@ namespace BotCore.Viber
         }
     }
 
-    public class AciveViberBot : BotBase, IBot
+    public class ViberBot : BotBase, IBot
     {
         [JsonIgnore]
         protected ViberBotClient _cli;
-        [JsonIgnore]
-        protected bool isListening;
-        [JsonIgnore]
-        protected HttpListener listener = new HttpListener();
-        [JsonIgnore]
-        protected Thread _thread;
-        [JsonIgnore]
-        TaskManager taskManager;
-
-        public AciveViberBot()
-        {
-            
-        }
-
-        public AciveViberBot(IConfiguration configuration) : base(configuration)
+        
+        public ViberBot(IConfiguration configuration) : base(configuration)
         {
             _cli = new ViberBotClient(configuration.Token);
         }
 
-        public override void Start()
+        protected override bool ParseIncomingMessage(String json, out IChatSession s, out IIncomingMessage m)
         {
-            _cli = new ViberBotClient(_conf.Token);
-            _thread = new Thread(Loop);
-            _thread.Start();
-            Task t = _cli.SetWebhookAsync(_conf.WebHook);
-            Task.WaitAll(t);
-        }
-
-        public override void Stop()
-        {
-            isListening = false;
-            _thread.Join(1000);
-            _thread = null;
-        }
-
-        public void Loop()
-        {
-            listener.Prefixes.Add(_conf.UriListener);
-            listener.Start();
-            isListening = true;
-
-
-            taskManager = new TaskManager();
-            while (isListening)
-            {
-                HttpListenerContext context = listener.GetContext();
-                HttpListenerResponse response = context.Response;
-                HttpListenerRequest request = context.Request;
-
-                response.StatusCode = (int)HttpStatusCode.OK;
-                using (Stream stream = response.OutputStream)
-                {
-                    
-                }
-                while (taskManager.IsAbuse)
-                {
-                    Thread.Sleep(100);
-                };
-                Task task = CentralRoadAsync(request);
-
-                taskManager.Add(task);
-            }
-            
-            listener.Stop();
-            listener.Close();
-
-            taskManager.WaitAll();
-        }
-
-        private async Task CentralRoadAsync(HttpListenerRequest request)
-        {
-
-            CallbackData data = await BotJsonManager.ParseFromRequest<CallbackData>(request);
+            s = null;
+            m = null;
+            CallbackData data = JsonConvert.DeserializeObject<CallbackData>(json);
             switch (data.Event)
             {
                 case EventType.Delivered:
-                    break;
+                    return false;
                 case EventType.Seen:
-                    {
-                        
-                    }
-                    break;
+                    return false;
                 case EventType.Failed:
-                    {
-                        break;
-                    }
+                    return false;
                 case EventType.Subscribed:
                     {
-                        var m = new IncomingMessage();
-                        var s = new ChatSession(data.User.Id);
-                        await ProcessIncomingMessageAsync(m, s);
-                        break;
+                        m = new IncomingMessage();
+                        s = new ChatSession(data.User.Id);
+                        return true;
                     }
                 case EventType.Unsubscribed:
                     {
-                        var s = new ChatSession(data.UserId);
-                        break;
+                        s = new ChatSession(data.UserId);
+                        return false;
                     }
                 case EventType.ConversationStarted:
                     {
-                        var s = new ChatSession(data.User.Id);
-                        var outMsg = new TextMessage
-                        {
-                            Text = "Dlia podalshogyi vzaemodiyi vidparte msg",
-                            Receiver = s.InternalChatId 
-                        };
-                        await _cli.SendTextMessageAsync(outMsg);
-                        break;
+                        return false;
                     }
                 case EventType.Message:
                     {
-                        var m = new IncomingMessage(data);
-                        var s = new ChatSession(data.Sender.Id);
-                        await ProcessIncomingMessageAsync(m,s);
-                        break;
+                        m = new IncomingMessage(data);
+                        s = new ChatSession(data.Sender.Id);
+                        return true;
                     }
                 case EventType.Webhook:
                     {
-                        break;
+                        return false;
                     }
                 case EventType.Action:
-                    break;
+                    return false;
                 default:
-                    break;
+                    return false;
             }
         }
 
