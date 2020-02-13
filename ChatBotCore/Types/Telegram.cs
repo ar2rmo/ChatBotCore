@@ -123,7 +123,7 @@ namespace BotCore.Telegram
 
         public TelegramBot(IConfiguration configuration) : base(configuration)
         {
-            
+            _cli = new TelegramBotClient(conf.Token);
         }
 
         public override async Task InitAsync()
