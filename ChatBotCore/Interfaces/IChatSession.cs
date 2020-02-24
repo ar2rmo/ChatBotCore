@@ -4,8 +4,8 @@ using System.Threading.Tasks;
 
 namespace BotCore
 {
-    public interface IChatSession
-    {
-        Guid ChatId { get; }
-    }
+	public interface IChatSession
+	{
+		Guid ChatId { get; }
+	}
 }
