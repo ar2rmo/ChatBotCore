@@ -200,7 +200,7 @@ namespace BotCore.Viber
 						{
 							Text = msg.Text,
 							Receiver = s.InternalChatId,
-							Keyboard = GetViberKeyboard(1,msg.Keyboard.Buttons.ToArray()),
+							Keyboard = GetViberKeyboard(msg.Keyboard.Buttons.ToArray()),
 							MinApiVersion = 3
 						};
 						await _cli.SendKeyboardMessageAsync(keyboardMsg);
@@ -223,7 +223,7 @@ namespace BotCore.Viber
 			}
 		}
 
-		private global::Viber.Bot.Keyboard GetViberKeyboard(int col, IButton[] buttons)
+		private global::Viber.Bot.Keyboard GetViberKeyboard(IButton[] buttons)
 		{
 			var kbd = new global::Viber.Bot.Keyboard();
 

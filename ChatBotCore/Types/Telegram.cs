@@ -143,7 +143,7 @@ namespace BotCore.Telegram
 					break;
 				case MsgOutType.Keyboard:
 					{
-						var m = await _cli.SendTextMessageAsync
+						await _cli.SendTextMessageAsync
 							(
 								ss.GetChatId(),
 								msg.Text,
@@ -157,7 +157,7 @@ namespace BotCore.Telegram
 					break;
 				case MsgOutType.Wait:
 					{
-						var m = await _cli.SendTextMessageAsync(ss.GetChatId(), $"Нагадування встановлено");
+						await _cli.SendTextMessageAsync(ss.GetChatId(), $"Нагадування встановлено");
 						break;
 					}
 				default:

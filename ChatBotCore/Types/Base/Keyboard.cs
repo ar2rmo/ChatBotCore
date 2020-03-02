@@ -6,7 +6,7 @@ namespace BotCore
 {
 	public class Keyboard : IKeyboard
 	{
-		private bool _isRootContinue;
+		private readonly bool _isRootContinue;
 
 		private IEnumerable<IButton> _buttons;
 
