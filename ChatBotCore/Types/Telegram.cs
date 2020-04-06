@@ -255,7 +255,7 @@ namespace BotCore.Telegram
 				for (int j = 0; j < keyBoard[i].Count(); j++)
 				{
 					keyBoard[i][j].Text = buttons[counter].Text;
-					keyBoard[i][j].CallbackData = buttons[counter].Key;
+					keyBoard[i][j].CallbackData = buttons[counter].Key ?? buttons[counter].Text;
 					counter++;
 				}
 			}
